@@ -352,7 +352,10 @@ class NewsRefreshService {
       ..sort((a, b) {
         final aTime = a.publishedAt ?? a.savedAt;
         final bTime = b.publishedAt ?? b.savedAt;
-        return bTime.compareTo(aTime);
+        final timeCmp = bTime.compareTo(aTime);
+        // 동일 시각이면 article ID로 tiebreak → 정렬 순서 안정화
+        if (timeCmp != 0) return timeCmp;
+        return a.id.compareTo(b.id);
       });
 
     return result;
@@ -444,9 +447,11 @@ class NewsRefreshService {
           ? latest.summary
           : fallback.summary,
       publishedAt: latest.publishedAt ?? fallback.publishedAt,
-      savedAt: latest.savedAt.isAfter(fallback.savedAt)
-          ? latest.savedAt
-          : fallback.savedAt,
+      // 최초 저장 시각을 보존한다. max를 쓰면 매 fetch마다 savedAt이 갱신되어
+      // publishedAt이 없는 기사들의 정렬 위치가 계속 바뀐다.
+      savedAt: primary.savedAt.isBefore(secondary.savedAt)
+          ? primary.savedAt
+          : secondary.savedAt,
       category: latest.category,
       matchedKeywords: {
         ...primary.matchedKeywords,
