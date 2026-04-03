@@ -1,5 +1,6 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:sosigi/core/ads/ad_ids.dart';
+import 'package:sosigi/services/app_logger.dart';
 
 class ExitInterstitialAdService {
   ExitInterstitialAdService._();
@@ -23,7 +24,8 @@ class ExitInterstitialAdService {
           _interstitialAd = ad;
           _isLoading = false;
         },
-        onAdFailedToLoad: (_) {
+        onAdFailedToLoad: (error) {
+          AppLogger.error('ExitInterstitialAdService', 'failed to load', error);
           _interstitialAd = null;
           _isLoading = false;
         },

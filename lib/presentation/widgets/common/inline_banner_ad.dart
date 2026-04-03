@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:sosigi/core/ads/ad_ids.dart';
+import 'package:sosigi/services/app_logger.dart';
 
 class InlineBannerAd extends StatefulWidget {
   const InlineBannerAd({super.key});
@@ -11,6 +12,7 @@ class InlineBannerAd extends StatefulWidget {
 
 class _InlineBannerAdState extends State<InlineBannerAd> {
   BannerAd? _banner;
+  bool _adLoaded = false;
 
   @override
   void initState() {
@@ -21,8 +23,18 @@ class _InlineBannerAdState extends State<InlineBannerAd> {
       size: AdSize.mediumRectangle,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdFailedToLoad: (ad, _) {
+        onAdLoaded: (_) {
+          if (!mounted) return;
+          setState(() => _adLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          AppLogger.error('InlineBannerAd', 'failed to load', error);
           ad.dispose();
+          if (!mounted) return;
+          setState(() {
+            _banner = null;
+            _adLoaded = false;
+          });
         },
       ),
     )..load();
@@ -37,9 +49,7 @@ class _InlineBannerAdState extends State<InlineBannerAd> {
   @override
   Widget build(BuildContext context) {
     final banner = _banner;
-    if (banner == null) {
-      return const SizedBox.shrink();
-    }
+    if (banner == null || !_adLoaded) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
