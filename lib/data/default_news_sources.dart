@@ -45,10 +45,10 @@ const List<NewsSource> defaultNewsSources = [
   ),
   NewsSource(
     id: 'google_it',
-    provider: 'Google IT',
+    provider: 'IT뉴스',
     label: 'IT',
     url:
-        'https://news.google.com/rss/search?q=AI+OR+IT+OR+%EB%B0%98%EB%8F%84%EC%B2%B4+OR+%ED%85%8C%ED%81%AC&hl=ko&gl=KR&ceid=KR:ko',
+        'https://news.google.com/rss/search?q=site:zdnet.co.kr+OR+site:aitimes.com+OR+site:inews24.com&hl=ko&gl=KR&ceid=KR:ko',
     category: HomeCategory.it,
     enabled: true,
   ),
@@ -71,18 +71,10 @@ const List<NewsSource> defaultNewsSources = [
 
   // ── 방송/신문사 ──
   NewsSource(
-    id: 'yonhap',
-    provider: '연합뉴스',
-    label: '연합뉴스',
-    url: 'https://www.yna.co.kr/rss/news.xml',
-    category: HomeCategory.all,
-    enabled: true,
-  ),
-  NewsSource(
     id: 'kbs',
     provider: 'KBS',
     label: 'KBS',
-    url: 'https://news.kbs.co.kr/rss/rss.do',
+    url: 'https://news.google.com/rss/search?q=site:news.kbs.co.kr&hl=ko&gl=KR&ceid=KR:ko',
     category: HomeCategory.all,
     enabled: true,
   ),

@@ -287,6 +287,7 @@ class NewsRefreshService {
             '${keyword.trim().toLowerCase()}|${_notificationFingerprint(article)}';
         if (notifiedKeys.contains(notificationKey) ||
             !nextNotifiedKeys.add(notificationKey)) {
+          AppLogger.info('NotificationDedup', 'skipped duplicate: $notificationKey');
           continue;
         }
 
@@ -386,8 +387,12 @@ class NewsRefreshService {
 
   bool _isGoogleDerivedArticle(Article article) {
     final normalizedLink = article.link.trim().toLowerCase();
-    return article.sourceId.startsWith('google') ||
-        normalizedLink.contains('news.google.com/');
+    // link가 news.google.com이면 무조건 Google 유래
+    if (normalizedLink.contains('news.google.com/')) return true;
+    // sourceId가 google_로 시작하더라도 직접 RSS(예: yna.co.kr)에서 온 기사는
+    // 제목에 " - 언론사" 형식이 없으므로 Google 유래로 보지 않는다.
+    return article.sourceId.startsWith('google') &&
+        article.title.contains(' - ');
   }
 
   (String, String) _splitTitleAndPublisher(String title) {
@@ -417,11 +422,19 @@ class NewsRefreshService {
 
   String _publishedBucket(DateTime? publishedAt) {
     if (publishedAt == null) return '';
+    // 5분 단위로 버킷화: 같은 뉴스를 다른 소스가 1~4분 차이로 발행해도 동일 기사로 인식
+    final bucketedMinute = (publishedAt.minute ~/ 5) * 5;
     return '${publishedAt.year.toString().padLeft(4, '0')}-'
         '${publishedAt.month.toString().padLeft(2, '0')}-'
         '${publishedAt.day.toString().padLeft(2, '0')}T'
         '${publishedAt.hour.toString().padLeft(2, '0')}:'
-        '${publishedAt.minute.toString().padLeft(2, '0')}';
+        '${bucketedMinute.toString().padLeft(2, '0')}';
+  }
+
+  DateTime? _earlierPublishedAt(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isBefore(b) ? a : b;
   }
 
   String _publishedDayBucket(DateTime? publishedAt) {
@@ -446,7 +459,7 @@ class NewsRefreshService {
       summary: latest.summary.length >= fallback.summary.length
           ? latest.summary
           : fallback.summary,
-      publishedAt: latest.publishedAt ?? fallback.publishedAt,
+      publishedAt: _earlierPublishedAt(primary.publishedAt, secondary.publishedAt),
       // 최초 저장 시각을 보존한다. max를 쓰면 매 fetch마다 savedAt이 갱신되어
       // publishedAt이 없는 기사들의 정렬 위치가 계속 바뀐다.
       savedAt: primary.savedAt.isBefore(secondary.savedAt)

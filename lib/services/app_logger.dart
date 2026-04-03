@@ -8,7 +8,7 @@ class AppLogger {
   );
 
   static void info(String tag, String message) {
-    // Intentionally skipped. Only error logs are retained.
+    debugPrint('[$tag] $message');
   }
 
   static void warn(String tag, String message) {

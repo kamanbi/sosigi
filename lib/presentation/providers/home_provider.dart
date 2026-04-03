@@ -461,6 +461,15 @@ class HomeNotifier extends StateNotifier<HomeState> {
       }).toList();
     }
 
+    // 최신순 정렬 (저장소 로드 시 순서 보장 안 되므로 항상 정렬)
+    result.sort((a, b) {
+      final aTime = a.publishedAt ?? a.savedAt;
+      final bTime = b.publishedAt ?? b.savedAt;
+      final timeCmp = bTime.compareTo(aTime);
+      if (timeCmp != 0) return timeCmp;
+      return a.id.compareTo(b.id);
+    });
+
     return result;
   }
 
