@@ -469,27 +469,7 @@ class RssService {
       return HomeCategory.international;
     }
 
-    if (_hasAny(text, [
-      'ai',
-      'it',
-      '반도체',
-      '애플',
-      '삼성',
-      '카카오',
-      '네이버',
-      '오픈ai',
-      '챗gpt',
-      '갤럭시',
-      '아이폰',
-      '테크',
-      '플랫폼',
-      '클라우드',
-      '로봇',
-      '전기차',
-    ])) {
-      return HomeCategory.it;
-    }
-
+    // 스포츠를 IT보다 먼저 검사 — '삼성(라이온즈)', '리그' 등이 IT로 오분류되는 것 방지
     if (_hasAny(text, [
       '축구',
       '야구',
@@ -503,8 +483,36 @@ class RssService {
       '프로야구',
       'mlb',
       'epl',
+      'kbo',
+      '리그',
+      '골프',
+      '테니스',
+      '배드민턴',
     ])) {
       return HomeCategory.sports;
+    }
+
+    if (_hasAny(text, [
+      'ai',
+      'it',
+      '반도체',
+      '애플',
+      '삼성전자',
+      '카카오',
+      '네이버',
+      '오픈ai',
+      '챗gpt',
+      '갤럭시',
+      '아이폰',
+      '테크',
+      '플랫폼',
+      '클라우드',
+      '로봇',
+      '전기차',
+      '인공지능',
+      '데이터센터',
+    ])) {
+      return HomeCategory.it;
     }
 
     if (_hasAny(text, [
