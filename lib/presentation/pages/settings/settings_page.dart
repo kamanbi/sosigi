@@ -24,13 +24,28 @@ class SettingsPage extends ConsumerStatefulWidget {
   ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends ConsumerState<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage>
+    with WidgetsBindingObserver {
   bool _isBatteryOptimized = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (Platform.isAndroid) {
+      _checkBatteryOptimization();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && Platform.isAndroid) {
       _checkBatteryOptimization();
     }
   }
@@ -183,14 +198,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     icon: Icons.battery_alert_rounded,
                     title: '배터리 최적화',
                     description: '백그라운드 업데이트 신뢰성',
-                    child: SettingActionTile(
-                      title: '배터리 최적화 예외 설정',
-                      subtitle: '앱이 닫혀도 뉴스를 제때 받으려면 예외로 설정하세요',
-                      onTap: () async {
-                        await BackgroundSyncScheduler.instance
-                            .requestIgnoreBatteryOptimization();
-                        await _checkBatteryOptimization();
-                      },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SettingActionTile(
+                          title: '배터리 최적화 예외 설정',
+                          subtitle: '앱이 닫혀도 뉴스를 제때 받으려면 예외로 설정하세요',
+                          onTap: () async {
+                            await BackgroundSyncScheduler.instance
+                                .requestIgnoreBatteryOptimization();
+                          },
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 13,
+                                color: AppColors.secondaryText,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  '키워드 알림을 받으려면 시스템 알림 권한도 승인해야 합니다.',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 SettingsSectionCard(
