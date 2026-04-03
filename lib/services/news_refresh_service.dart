@@ -253,7 +253,20 @@ class NewsRefreshService {
 
     if (enabledKeywordsByLower.isEmpty) return;
 
-    final notifiedKeys = await _store.loadNotifiedArticleKeys();
+    // Hive 손상 시 notifiedKeys 로드 실패해도 알림 전송을 막지 않도록 try-catch.
+    // 로드 실패 시 빈 Set을 사용해 이번 실행 내 중복만 방지한다.
+    late final Set<String> notifiedKeys;
+    try {
+      notifiedKeys = await _store.loadNotifiedArticleKeys();
+    } catch (e, st) {
+      AppLogger.error(
+        'NewsRefreshService',
+        'loadNotifiedArticleKeys failed, using empty set',
+        e,
+        st,
+      );
+      notifiedKeys = {};
+    }
     final grouped = <String, List<Article>>{};
     final nextNotifiedKeys = <String>{};
 
@@ -358,21 +371,14 @@ class NewsRefreshService {
     return '$normalizedTitle|$normalizedPublisher|$publishedBucket';
   }
 
+  /// 알림 중복 방지용 fingerprint.
+  /// 소스 종류(직접/Google)에 무관하게 동일 뉴스 이벤트는 같은 값을 반환하도록
+  /// normalizedTitle + dayBucket 만을 사용한다.
+  /// link를 포함하면 같은 기사도 소스마다 fingerprint가 달라져 중복 알림이 발생한다.
   String _notificationFingerprint(Article article) {
     final split = _splitTitleAndPublisher(article.title);
     final normalizedTitle = _normalizeSemanticTextSafe(split.$1);
-    final normalizedLink = article.link.trim().toLowerCase();
-
-    if (_isGoogleDerivedArticle(article)) {
-      return '$normalizedTitle|${_publishedDayBucket(article.publishedAt)}';
-    }
-
-    if (normalizedLink.isNotEmpty) {
-      return normalizedLink;
-    }
-
-    final normalizedPublisher = _normalizeSemanticTextSafe(split.$2);
-    return '$normalizedTitle|$normalizedPublisher|${_publishedDayBucket(article.publishedAt)}';
+    return '$normalizedTitle|${_publishedDayBucket(article.publishedAt)}';
   }
 
   bool _isGoogleDerivedArticle(Article article) {
