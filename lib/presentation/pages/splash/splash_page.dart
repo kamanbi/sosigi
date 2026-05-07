@@ -6,6 +6,8 @@ import 'package:sosigi/app/theme/app_colors.dart';
 import 'package:sosigi/app/theme/app_text_styles.dart';
 import 'package:sosigi/services/app_logger.dart';
 import 'package:sosigi/services/notification_service.dart';
+import 'package:sosigi/services/update_check_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -48,6 +50,9 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
 
   Future<void> _startFlow() async {
     try {
+      _setLoadingLabel('업데이트를 확인하고 있습니다...');
+      await _checkUpdate();
+
       _setLoadingLabel('앱을 준비하고 있습니다...');
       await Future<void>.delayed(_splashDelay);
 
@@ -67,6 +72,96 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
     if (!mounted || _navigated) return;
     _navigated = true;
     Navigator.pushReplacementNamed(context, AppRouter.home);
+  }
+
+  Future<void> _checkUpdate() async {
+    try {
+      final service = CombinedUpdateService();
+      final result = await service.check();
+      if (!result.hasUpdate || !mounted) return;
+      await _showUpdateDialog(result, service);
+    } catch (e, st) {
+      AppLogger.error('SplashPage', 'update check failed', e, st);
+    }
+  }
+
+  Future<void> _showUpdateDialog(
+    UpdateCheckResult result,
+    CombinedUpdateService service,
+  ) async {
+    final isForced = result.isForced;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !isForced,
+      builder: (context) {
+        return PopScope(
+          canPop: !isForced,
+          child: AlertDialog(
+            backgroundColor: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            title: Text(
+              isForced ? '필수 업데이트가 있습니다' : '새 버전이 출시되었습니다',
+              style: AppTextStyles.sectionTitle.copyWith(fontSize: 18),
+            ),
+            content: Text(
+              [
+                if (result.currentVersion != null)
+                  '현재 버전: ${result.currentVersion}',
+                if (result.latestVersion != null)
+                  '최신 버전: ${result.latestVersion}',
+                if (isForced)
+                  '\n계속 사용하려면 업데이트가 필요합니다.'
+                else
+                  '\n업데이트하면 최신 기능을 사용할 수 있습니다.',
+              ].join('\n'),
+              style: AppTextStyles.sectionBody.copyWith(fontSize: 13),
+            ),
+            actions: [
+              if (!isForced)
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    '나중에',
+                    style: AppTextStyles.button.copyWith(
+                      color: AppColors.secondaryText,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.navy,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: () async {
+                  Navigator.pop(context);
+                  if (result.source == UpdateSource.inAppUpdate) {
+                    await service.triggerInAppUpdate();
+                  } else {
+                    final url = Uri.tryParse(result.storeUrl ?? '');
+                    if (url != null) {
+                      await launchUrl(url,
+                          mode: LaunchMode.externalApplication);
+                    }
+                  }
+                },
+                child: Text(
+                  '업데이트',
+                  style: AppTextStyles.button.copyWith(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _setLoadingLabel(String value) {

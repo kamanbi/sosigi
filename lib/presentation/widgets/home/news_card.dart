@@ -64,7 +64,7 @@ class NewsCard extends StatelessWidget {
         : '${article.sourceName} · ${DateFormat('MM.dd HH:mm').format(article.publishedAt!)}';
 
     final titleStyle = AppTextStyles.cardTitle.copyWith(
-      fontSize: 13.5,
+      fontSize: 11,
       height: 1.3,
       color: isRead ? AppColors.secondaryText : AppColors.primaryText,
     );
@@ -72,8 +72,8 @@ class NewsCard extends StatelessWidget {
     return Opacity(
       opacity: isRead ? 0.72 : 1,
       child: PremiumCard(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Row(
           children: [
             Expanded(
@@ -81,7 +81,7 @@ class NewsCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 onTap: () => _openLink(context),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 1),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -91,7 +91,7 @@ class NewsCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: titleStyle,
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 5),
                       Row(
                         children: [
                           Expanded(
@@ -99,14 +99,14 @@ class NewsCard extends StatelessWidget {
                               sourceText,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.caption,
+                              style: AppTextStyles.caption.copyWith(fontSize: 10),
                             ),
                           ),
                           if (article.matchedKeywords.isNotEmpty)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                                horizontal: 6,
+                                vertical: 3,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.accent,
@@ -116,6 +116,7 @@ class NewsCard extends StatelessWidget {
                                 article.matchedKeywords.first,
                                 style: AppTextStyles.caption.copyWith(
                                   color: AppColors.navy,
+                                  fontSize: 10,
                                 ),
                               ),
                             ),
@@ -126,9 +127,12 @@ class NewsCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             IconButton(
               onPressed: onToggleBookmark,
+              iconSize: 18,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
               icon: Icon(
                 isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
                 color: isBookmarked ? AppColors.navy : AppColors.secondaryText,
@@ -137,7 +141,7 @@ class NewsCard extends StatelessWidget {
             const Icon(
               Icons.chevron_right_rounded,
               color: AppColors.secondaryText,
-              size: 22,
+              size: 18,
             ),
           ],
         ),
