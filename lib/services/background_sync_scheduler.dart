@@ -4,8 +4,7 @@ import 'package:sosigi/domain/models/app_settings.dart';
 class BackgroundSyncScheduler {
   BackgroundSyncScheduler._();
 
-  static final BackgroundSyncScheduler instance =
-      BackgroundSyncScheduler._();
+  static final BackgroundSyncScheduler instance = BackgroundSyncScheduler._();
 
   static const MethodChannel _channel = MethodChannel(
     'sosigi/background_sync',
@@ -39,6 +38,10 @@ class BackgroundSyncScheduler {
   /// 배터리 최적화 예외 요청 다이얼로그 표시 (Android 전용)
   Future<void> requestIgnoreBatteryOptimization() async {
     await _invoke('requestIgnoreBatteryOptimization', const <String, Object>{});
+  }
+
+  Future<void> openBatteryOptimizationSettings() async {
+    await _invoke('openBatteryOptimizationSettings', const <String, Object>{});
   }
 
   Future<void> _invoke(String method, Map<String, Object> arguments) async {

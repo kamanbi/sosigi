@@ -46,4 +46,30 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
     state = next;
     await _store.saveSettings(next);
   }
+
+  Future<void> setNotificationQuietHoursStart(
+    NotificationQuietTime value,
+  ) async {
+    final next = state.copyWith(
+      notificationQuietHours: NotificationQuietHours(
+        start: value,
+        end: state.notificationQuietHours.end,
+      ),
+    );
+    state = next;
+    await _store.saveSettings(next);
+  }
+
+  Future<void> setNotificationQuietHoursEnd(
+    NotificationQuietTime value,
+  ) async {
+    final next = state.copyWith(
+      notificationQuietHours: NotificationQuietHours(
+        start: state.notificationQuietHours.start,
+        end: value,
+      ),
+    );
+    state = next;
+    await _store.saveSettings(next);
+  }
 }

@@ -10,11 +10,18 @@ import 'package:sosigi/presentation/widgets/common/sosigi_scaffold.dart';
 class NewsSourcesPage extends ConsumerWidget {
   const NewsSourcesPage({super.key});
 
+  static const _compactCardPadding = EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 8,
+  );
+  static const _compactCardMargin = EdgeInsets.only(bottom: 6);
+  static const _compactDescriptionFontSize = 10.5;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sources = ref.watch(newsSourceProvider);
     final notifier = ref.read(newsSourceProvider.notifier);
-    final enabledCount = sources.where((e) => e.enabled).length;
+    final enabledCount = sources.where((source) => source.enabled).length;
 
     return SosigiScaffold(
       bottomNavigationBar: const BottomBannerAd(),
@@ -86,11 +93,8 @@ class NewsSourcesPage extends ConsumerWidget {
                 final source = sources[index];
 
                 return PremiumCard(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
+                  margin: _compactCardMargin,
+                  padding: _compactCardPadding,
                   child: Row(
                     children: [
                       Expanded(
@@ -103,12 +107,12 @@ class NewsSourcesPage extends ConsumerWidget {
                                 fontSize: 14,
                               ),
                             ),
-                            if (source.id == 'google') ...[
+                            if (_showsMergedDescription(source.id)) ...[
                               const SizedBox(height: 4),
                               Text(
-                                '종합 · 정치 · 경제 · 사회 · 국제 · IT · 스포츠 · 연예',
+                                _descriptionForSource(source.id),
                                 style: AppTextStyles.sectionBody.copyWith(
-                                  fontSize: 11,
+                                  fontSize: _compactDescriptionFontSize,
                                 ),
                               ),
                             ],
@@ -117,9 +121,7 @@ class NewsSourcesPage extends ConsumerWidget {
                       ),
                       Switch(
                         value: source.enabled,
-                        onChanged: (_) {
-                          notifier.toggleSource(source.id);
-                        },
+                        onChanged: (_) => notifier.toggleSource(source.id),
                         activeColor: AppColors.navy,
                         activeTrackColor: AppColors.accent,
                       ),
@@ -132,5 +134,23 @@ class NewsSourcesPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  bool _showsMergedDescription(String sourceId) {
+    return switch (sourceId) {
+      'google' || 'yna' || 'mk' || 'newsis' || 'mbn' || 'fnnews' => true,
+      _ => false,
+    };
+  }
+
+  String _descriptionForSource(String sourceId) {
+    return switch (sourceId) {
+      'google' || 'yna' => '종합 · 정치 · 경제 · 사회 · 국제 · IT · 스포츠 · 연예',
+      'mk' => '종합 · 경제 · 기업 · 증권',
+      'newsis' => '경제 · 금융 · 산업',
+      'mbn' => '종합 · 경제',
+      'fnnews' => '종합 · 경제 · 증권',
+      _ => '',
+    };
   }
 }

@@ -479,6 +479,31 @@ class HomeNotifier extends StateNotifier<HomeState> {
           article.sourceName.toLowerCase().contains('google');
     }
 
+    if (source.id == 'yna') {
+      return article.sourceId.startsWith('yna') ||
+          article.sourceName.contains('연합');
+    }
+
+    if (source.id == 'mk') {
+      return article.sourceId.startsWith('mk') ||
+          article.sourceName.contains('매일경제');
+    }
+
+    if (source.id == 'newsis') {
+      return article.sourceId.startsWith('newsis') ||
+          article.sourceName.contains('뉴시스');
+    }
+
+    if (source.id == 'mbn') {
+      return article.sourceId.startsWith('mbn') ||
+          article.sourceName.contains('MBN');
+    }
+
+    if (source.id == 'fnnews') {
+      return article.sourceId.startsWith('fnnews') ||
+          article.sourceName.contains('파이낸셜뉴스');
+    }
+
     return article.sourceId == source.id || article.sourceName == source.provider;
   }
 

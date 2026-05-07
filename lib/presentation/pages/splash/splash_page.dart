@@ -1,11 +1,24 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:sosigi/app/router.dart';
 import 'package:sosigi/app/theme/app_colors.dart';
 import 'package:sosigi/app/theme/app_text_styles.dart';
 import 'package:sosigi/services/app_logger.dart';
+import 'package:sosigi/services/background_sync_scheduler.dart';
+import 'package:sosigi/services/local_store_service.dart';
 import 'package:sosigi/services/notification_service.dart';
+
+class _PermissionPromptDecision {
+  const _PermissionPromptDecision({
+    required this.shouldContinue,
+    required this.suppressPrompt,
+  });
+
+  final bool shouldContinue;
+  final bool suppressPrompt;
+}
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -18,6 +31,8 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
   static const String _appIconAsset =
       'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png';
   static const Duration _splashDelay = Duration(seconds: 2);
+
+  final LocalStoreService _store = LocalStoreService();
 
   bool _navigated = false;
   Completer<void>? _settingsReturnCompleter;
@@ -52,13 +67,11 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
       await Future<void>.delayed(_splashDelay);
 
       _setLoadingLabel('알림 권한을 확인하고 있습니다...');
-      final permissionResult =
-          await NotificationService.instance.ensurePermissionFlow();
+      await _handleNotificationPermissionFlow();
 
-      if (permissionResult.shouldOpenSettings && mounted) {
-        await _showNotificationSettingsDialog(
-          deniedCount: permissionResult.deniedCount,
-        );
+      if (Platform.isAndroid) {
+        _setLoadingLabel('백그라운드 허용 상태를 확인하고 있습니다...');
+        await _handleBackgroundPermissionFlow();
       }
     } catch (e, st) {
       AppLogger.error('SplashPage', 'startup flow failed', e, st);
@@ -67,6 +80,69 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
     if (!mounted || _navigated) return;
     _navigated = true;
     Navigator.pushReplacementNamed(context, AppRouter.home);
+  }
+
+  Future<void> _handleNotificationPermissionFlow() async {
+    final isGranted = await NotificationService.instance.syncPermissionState();
+    if (isGranted) return;
+
+    final isSuppressed = await NotificationService.instance.isPromptSuppressed();
+    if (isSuppressed || !mounted) return;
+
+    final decision = await _showPermissionPromptDialog(
+      title: '알림 권한을 허용해 주세요',
+      message:
+          '새로운 키워드 뉴스가 도착했을 때 알림창으로 바로 알려드리기 위해 알림 권한이 필요합니다.',
+      confirmLabel: '알림 허용',
+    );
+
+    await NotificationService.instance.setPromptSuppressed(
+      decision.suppressPrompt,
+    );
+
+    if (!decision.shouldContinue) return;
+
+    final permissionResult =
+        await NotificationService.instance.ensurePermissionFlow();
+
+    if (permissionResult.shouldOpenSettings && mounted) {
+      await _showNotificationSettingsDialog(
+        deniedCount: permissionResult.deniedCount,
+      );
+    }
+  }
+
+  Future<void> _handleBackgroundPermissionFlow() async {
+    final isBatteryOptimizationEnabled =
+        await BackgroundSyncScheduler.instance.isBatteryOptimized();
+    if (!isBatteryOptimizationEnabled) {
+      await _store.saveBackgroundPromptSuppressed(false);
+      return;
+    }
+
+    final isSuppressed = await _store.loadBackgroundPromptSuppressed();
+    if (isSuppressed || !mounted) return;
+
+    final decision = await _showPermissionPromptDialog(
+      title: '백그라운드 허용을 허용해 주세요',
+      message:
+          '앱을 닫아도 자동 업데이트 주기에 맞춰 뉴스를 다시 확인하고, 새로운 키워드 뉴스가 생기면 알림을 보내기 위해 백그라운드 허용이 필요합니다.',
+      confirmLabel: '백그라운드 허용',
+    );
+
+    await _store.saveBackgroundPromptSuppressed(decision.suppressPrompt);
+
+    if (!decision.shouldContinue) return;
+
+    await _awaitSystemSettingsReturn(
+      () => BackgroundSyncScheduler.instance.requestIgnoreBatteryOptimization(),
+    );
+
+    final isStillOptimized =
+        await BackgroundSyncScheduler.instance.isBatteryOptimized();
+    if (!isStillOptimized) {
+      await _store.saveBackgroundPromptSuppressed(false);
+    }
   }
 
   void _setLoadingLabel(String value) {
@@ -93,8 +169,7 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
             style: AppTextStyles.sectionTitle.copyWith(fontSize: 18),
           ),
           content: Text(
-            '알림 권한을 $deniedCount회 거부하여 더 이상 자동 요청하지 않습니다. '
-            '설정에서 권한을 허용하면 키워드 알림을 받을 수 있습니다.',
+            '알림 권한을 $deniedCount회 거부하여 더 이상 자동 요청하지 않습니다. 설정에서 권한을 허용하면 새로운 키워드 뉴스를 알림창으로 바로 받을 수 있습니다.',
             style: AppTextStyles.sectionBody.copyWith(fontSize: 13),
           ),
           actions: [
@@ -131,11 +206,127 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
 
     if (shouldOpenSettings != true) return;
 
+    await _awaitSystemSettingsReturn(
+      NotificationService.instance.openNotificationSettings,
+    );
+    await NotificationService.instance.syncPermissionState();
+  }
+
+  Future<_PermissionPromptDecision> _showPermissionPromptDialog({
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) async {
+    final result = await showDialog<_PermissionPromptDecision>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        var suppressPrompt = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              title: Text(
+                title,
+                style: AppTextStyles.sectionTitle.copyWith(fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message,
+                    style: AppTextStyles.sectionBody.copyWith(fontSize: 13),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: suppressPrompt,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            suppressPrompt = value ?? false;
+                          });
+                        },
+                      ),
+                      Expanded(
+                        child: Text(
+                          '다음엔 자동으로 다시 묻지 않음',
+                          style: AppTextStyles.sectionBody.copyWith(
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      context,
+                      _PermissionPromptDecision(
+                        shouldContinue: false,
+                        suppressPrompt: suppressPrompt,
+                      ),
+                    );
+                  },
+                  child: Text(
+                    '나중에',
+                    style: AppTextStyles.button.copyWith(
+                      color: AppColors.secondaryText,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(
+                      context,
+                      _PermissionPromptDecision(
+                        shouldContinue: true,
+                        suppressPrompt: suppressPrompt,
+                      ),
+                    );
+                  },
+                  child: Text(
+                    confirmLabel,
+                    style: AppTextStyles.button.copyWith(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    return result ??
+        const _PermissionPromptDecision(
+          shouldContinue: false,
+          suppressPrompt: false,
+        );
+  }
+
+  Future<void> _awaitSystemSettingsReturn(Future<void> Function() action) async {
     _settingsReturnCompleter = Completer<void>();
-    await NotificationService.instance.openNotificationSettings();
+    await action();
     await _settingsReturnCompleter!.future;
     _settingsReturnCompleter = null;
-    await NotificationService.instance.syncPermissionState();
   }
 
   @override

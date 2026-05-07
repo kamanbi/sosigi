@@ -27,13 +27,6 @@ Future<void> main() async {
 
 Future<void> _initializeStartupServices() async {
   try {
-    MobileAds.instance.updateRequestConfiguration(
-      RequestConfiguration(
-        // 실기기 테스트용: Play Store 게시 전 광고 수신 확인용 등록 기기
-        // 게시 후 및 테스트 불필요 시 제거 가능
-        testDeviceIds: const ['E3A823D523D0B555845DD4E97EF93BD3'],
-      ),
-    );
     await MobileAds.instance.initialize();
     AppLogger.info('main', 'MobileAds initialized');
   } catch (e, st) {

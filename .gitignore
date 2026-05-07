@@ -51,7 +51,6 @@ android/key.properties
 .claude/
 
 # Development/diagnostic artifacts
-*.xml
 plan.md
 research.md
 review_rules.md

@@ -177,6 +177,26 @@ class RssService {
       return googleFeedUrls;
     }
 
+    if (source.id == 'yna') {
+      return ynaFeedUrls;
+    }
+
+    if (source.id == 'mk') {
+      return mkFeedUrls;
+    }
+
+    if (source.id == 'newsis') {
+      return newsisFeedUrls;
+    }
+
+    if (source.id == 'mbn') {
+      return mbnFeedUrls;
+    }
+
+    if (source.id == 'fnnews') {
+      return fnnewsFeedUrls;
+    }
+
     return [source.url];
   }
 

@@ -1,15 +1,22 @@
 package com.kaman.sosigi
 
+import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.view.WindowCompat
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -61,6 +68,11 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
+                "openBatteryOptimizationSettings" -> {
+                    openBatteryOptimizationSettings()
+                    result.success(null)
+                }
+
                 else -> result.notImplemented()
             }
         }
@@ -106,10 +118,32 @@ class MainActivity : FlutterActivity() {
         startActivity(settingsIntent)
     }
 
+    private fun openBatteryOptimizationSettings() {
+        val launched =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                tryStartActivity(
+                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    },
+                )
+            } else {
+                false
+            }
+
+        if (!launched) {
+            tryStartActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:$packageName")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+            )
+        }
+    }
+
     companion object {
         private const val BACKGROUND_SYNC_CHANNEL = "sosigi/background_sync"
         private const val NOTIFICATION_SETTINGS_CHANNEL =
             "sosigi/notification_settings"
-        private const val DEFAULT_INTERVAL_MINUTES = 60L
+        private const val DEFAULT_INTERVAL_MINUTES = 240L
     }
 }

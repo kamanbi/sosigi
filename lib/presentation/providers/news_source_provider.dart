@@ -25,10 +25,6 @@ class NewsSourceNotifier extends StateNotifier<List<NewsSource>> {
       if (loaded.isEmpty) {
         state = runtimeDefaultNewsSources;
         await _store.saveSources(runtimeDefaultNewsSources);
-        AppLogger.info(
-          'NewsSourceNotifier',
-          'initialized with defaults: ${runtimeDefaultNewsSources.length}',
-        );
         _loaded = true;
         return;
       }
@@ -37,16 +33,49 @@ class NewsSourceNotifier extends StateNotifier<List<NewsSource>> {
         for (final source in loaded) source.id: source.enabled,
       };
 
-      final legacyGoogleEnabled = loaded.any(
-        (source) => source.id.startsWith('google_') && source.enabled,
-      );
-      final googleEnabled = enabledById['google'] ?? legacyGoogleEnabled;
+      final mergedEnabledById = <String, bool>{
+        'google': _resolveMergedEnabled(
+          mergedId: 'google',
+          prefix: 'google_',
+          enabledById: enabledById,
+          loaded: loaded,
+        ),
+        'yna': _resolveMergedEnabled(
+          mergedId: 'yna',
+          prefix: 'yna_',
+          enabledById: enabledById,
+          loaded: loaded,
+          fallbackEnabled: enabledById['google'],
+        ),
+        'mk': _resolveMergedEnabled(
+          mergedId: 'mk',
+          prefix: 'mk_',
+          enabledById: enabledById,
+          loaded: loaded,
+        ),
+        'newsis': _resolveMergedEnabled(
+          mergedId: 'newsis',
+          prefix: 'newsis_',
+          enabledById: enabledById,
+          loaded: loaded,
+        ),
+        'mbn': _resolveMergedEnabled(
+          mergedId: 'mbn',
+          prefix: 'mbn_',
+          enabledById: enabledById,
+          loaded: loaded,
+        ),
+        'fnnews': _resolveMergedEnabled(
+          mergedId: 'fnnews',
+          prefix: 'fnnews_',
+          enabledById: enabledById,
+          loaded: loaded,
+        ),
+      };
 
       final merged = runtimeDefaultNewsSources.map((source) {
-        if (source.id == 'google') {
-          return source.copyWith(
-            enabled: googleEnabled,
-          );
+        if (mergedEnabledById.containsKey(source.id)) {
+          return source.copyWith(enabled: mergedEnabledById[source.id]!);
         }
 
         return source.copyWith(
@@ -56,17 +85,35 @@ class NewsSourceNotifier extends StateNotifier<List<NewsSource>> {
 
       state = merged;
       await _store.saveSources(merged);
-
-      AppLogger.info(
-        'NewsSourceNotifier',
-        'loaded=${loaded.length}, merged=${merged.length}',
-      );
     } catch (e, st) {
       AppLogger.error('NewsSourceNotifier', 'load failed', e, st);
       state = runtimeDefaultNewsSources;
     } finally {
       _loaded = true;
     }
+  }
+
+  bool _resolveMergedEnabled({
+    required String mergedId,
+    required String prefix,
+    required Map<String, bool> enabledById,
+    required List<NewsSource> loaded,
+    bool? fallbackEnabled,
+  }) {
+    final mergedEnabled = enabledById[mergedId];
+    if (mergedEnabled != null) {
+      return mergedEnabled;
+    }
+
+    final categoryEnabled = loaded.any(
+      (source) => source.id.startsWith(prefix) && source.enabled,
+    );
+
+    if (categoryEnabled) {
+      return true;
+    }
+
+    return fallbackEnabled ?? false;
   }
 
   Future<void> toggleSource(String id) async {
@@ -80,13 +127,11 @@ class NewsSourceNotifier extends StateNotifier<List<NewsSource>> {
 
     state = next;
     await _store.saveSources(next);
-    AppLogger.info('NewsSourceNotifier', 'toggled source: $id');
   }
 
   Future<void> enableAll() async {
     final next = state.map((source) => source.copyWith(enabled: true)).toList();
     state = next;
     await _store.saveSources(next);
-    AppLogger.info('NewsSourceNotifier', 'all sources enabled: ${next.length}');
   }
 }

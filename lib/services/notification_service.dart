@@ -32,6 +32,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   final LocalStoreService _store = LocalStoreService();
+  bool _isAppInForeground = false;
 
   final ValueNotifier<String?> selectedKeywordFromNotification =
       ValueNotifier<String?>(null);
@@ -165,7 +166,9 @@ class NotificationService {
     required List<Article> articles,
   }) async {
     if (articles.isEmpty) return;
+    if (_isAppInForeground) return;
     if (!await canShowNotifications()) return;
+    if (await _isWithinNotificationQuietHours()) return;
 
     final count = articles.length;
     final latest = articles.first.title;
@@ -195,6 +198,10 @@ class NotificationService {
     selectedKeywordFromNotification.value = null;
   }
 
+  void setAppForegroundState(bool isForeground) {
+    _isAppInForeground = isForeground;
+  }
+
   void _onNotificationResponse(NotificationResponse response) {
     final payload = response.payload;
     if (payload != null && payload.trim().isNotEmpty) {
@@ -207,11 +214,20 @@ class NotificationService {
     return _hasNotificationPermission();
   }
 
+  Future<bool> isPromptSuppressed() async {
+    return _store.loadNotificationPromptSuppressed();
+  }
+
+  Future<void> setPromptSuppressed(bool value) async {
+    await _store.saveNotificationPromptSuppressed(value);
+  }
+
   Future<bool> syncPermissionState() async {
     await initialize();
     final isGranted = await _hasNotificationPermission();
     if (isGranted) {
       await _store.resetNotificationPermissionDeniedCount();
+      await _store.saveNotificationPromptSuppressed(false);
     }
     return isGranted;
   }
@@ -262,6 +278,11 @@ class NotificationService {
       default:
         return false;
     }
+  }
+
+  Future<bool> _isWithinNotificationQuietHours() async {
+    final settings = await _store.loadSettings();
+    return settings.notificationQuietHours.contains(DateTime.now());
   }
 }
 

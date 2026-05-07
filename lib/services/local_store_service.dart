@@ -16,6 +16,8 @@ class LocalStoreService {
   static const _settingsWarning = 'settings_warning';
   static const _settingsSync = 'settings_sync';
   static const _settingsRetention = 'settings_retention';
+  static const _settingsQuietHoursStart = 'settings_quiet_hours_start';
+  static const _settingsQuietHoursEnd = 'settings_quiet_hours_end';
 
   static const _keywords = 'keywords';
   static const _sources = 'sources';
@@ -27,6 +29,10 @@ class LocalStoreService {
   static const _notifiedArticleKeys = 'notified_article_keys';
   static const _notificationPermissionDeniedCount =
       'notification_permission_denied_count';
+  static const _notificationPromptSuppressed =
+      'notification_prompt_suppressed';
+  static const _backgroundPromptSuppressed =
+      'background_prompt_suppressed';
   static const _lastBackgroundSyncResult = 'last_background_sync_result';
   static const _refreshLease = 'refresh_lease';
 
@@ -66,6 +72,18 @@ class LocalStoreService {
       box,
       _settingsRetention,
       prefs.getInt,
+    );
+    await _copyIfPresent<String>(
+      prefs,
+      box,
+      _settingsQuietHoursStart,
+      prefs.getString,
+    );
+    await _copyIfPresent<String>(
+      prefs,
+      box,
+      _settingsQuietHoursEnd,
+      prefs.getString,
     );
     await _copyIfPresent<String>(prefs, box, _keywords, prefs.getString);
     await _copyIfPresent<String>(prefs, box, _sources, prefs.getString);
@@ -128,12 +146,24 @@ class LocalStoreService {
     final box = await _getBox();
     final syncRaw = box.get(_settingsSync);
     final retentionRaw = box.get(_settingsRetention);
+    final quietHoursStartRaw = box.get(_settingsQuietHoursStart);
+    final quietHoursEndRaw = box.get(_settingsQuietHoursEnd);
 
     return AppSettings(
       wifiOnly: box.get(_settingsWifiOnly) as bool? ?? true,
       suppressMobileDataWarning: box.get(_settingsWarning) as bool? ?? false,
       syncInterval: SyncIntervalOption.fromStoredValue(syncRaw),
       retentionOption: RetentionOption.fromStoredValue(retentionRaw),
+      notificationQuietHours: NotificationQuietHours(
+        start: NotificationQuietTime.fromStoredValue(
+          quietHoursStartRaw,
+          fallback: NotificationQuietTime.defaultStart,
+        ),
+        end: NotificationQuietTime.fromStoredValue(
+          quietHoursEndRaw,
+          fallback: NotificationQuietTime.defaultEnd,
+        ),
+      ),
     );
   }
 
@@ -143,6 +173,14 @@ class LocalStoreService {
     await box.put(_settingsWarning, settings.suppressMobileDataWarning);
     await box.put(_settingsSync, settings.syncInterval.storageValue);
     await box.put(_settingsRetention, settings.retentionOption.storageValue);
+    await box.put(
+      _settingsQuietHoursStart,
+      settings.notificationQuietHours.start.storageValue,
+    );
+    await box.put(
+      _settingsQuietHoursEnd,
+      settings.notificationQuietHours.end.storageValue,
+    );
   }
 
   Future<List<KeywordItem>> loadKeywords() async {
@@ -260,6 +298,26 @@ class LocalStoreService {
 
   Future<void> resetNotificationPermissionDeniedCount() async {
     await saveNotificationPermissionDeniedCount(0);
+  }
+
+  Future<bool> loadNotificationPromptSuppressed() async {
+    final box = await _getBox();
+    return box.get(_notificationPromptSuppressed) as bool? ?? false;
+  }
+
+  Future<void> saveNotificationPromptSuppressed(bool value) async {
+    final box = await _getBox();
+    await box.put(_notificationPromptSuppressed, value);
+  }
+
+  Future<bool> loadBackgroundPromptSuppressed() async {
+    final box = await _getBox();
+    return box.get(_backgroundPromptSuppressed) as bool? ?? false;
+  }
+
+  Future<void> saveBackgroundPromptSuppressed(bool value) async {
+    final box = await _getBox();
+    await box.put(_backgroundPromptSuppressed, value);
   }
 
   Future<Map<String, dynamic>?> loadLastBackgroundSyncResult() async {

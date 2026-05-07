@@ -9,7 +9,6 @@ import 'package:sosigi/app/router.dart';
 import 'package:sosigi/app/theme/app_colors.dart';
 import 'package:sosigi/app/theme/app_text_styles.dart';
 import 'package:sosigi/core/ads/article_open_ad_counter_service.dart';
-import 'package:sosigi/core/ads/exit_interstitial_ad_service.dart';
 import 'package:sosigi/core/enums/home_category.dart';
 import 'package:sosigi/domain/models/article.dart';
 import 'package:sosigi/presentation/providers/app_settings_provider.dart';
@@ -38,7 +37,6 @@ class _HomePageState extends ConsumerState<HomePage>
   static const String _appIconAsset =
       'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png';
   static const Duration _manualRefreshLockDuration = Duration(seconds: 5);
-  bool _isExiting = false;
   bool _isManualRefreshLocked = false;
   int _transitionDirection = 1;
   List<ConnectivityResult> _connectivityResults = const <ConnectivityResult>[];
@@ -150,7 +148,7 @@ class _HomePageState extends ConsumerState<HomePage>
             style: AppTextStyles.sectionTitle.copyWith(fontSize: 18),
           ),
           content: Text(
-            '확인 버튼을 누르면 광고가 표시된 뒤 앱이 종료됩니다.',
+            '앱을 종료하시겠습니까?',
             style: AppTextStyles.sectionBody.copyWith(fontSize: 13),
           ),
           actions: [
@@ -188,21 +186,14 @@ class _HomePageState extends ConsumerState<HomePage>
     return result ?? false;
   }
 
-  Future<void> _exitWithAd() async {
-    if (_isExiting) return;
-    _isExiting = true;
-
-    await ExitInterstitialAdService.instance.showIfReady();
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-
-    if (!mounted) return;
+  Future<void> _closeApp() async {
     await SystemNavigator.pop();
   }
 
   Future<void> _handleBackPressed() async {
-    final confirmed = await _showExitDialog();
-    if (!confirmed) return;
-    await _exitWithAd();
+    final confirmedExit = await _showExitDialog();
+    if (!confirmedExit) return;
+    await _closeApp();
   }
 
   int _categoryIndex(HomeCategory category) {
