@@ -8,7 +8,19 @@ class AppLogger {
   );
 
   static void info(String tag, String message) {
-    debugPrint('[$tag] $message');
+    final now = DateTime.now();
+    final timestamp =
+        '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}:'
+        '${now.second.toString().padLeft(2, '0')}';
+    final line = '[$timestamp] [INFO] [$tag] $message';
+    debugPrint(line);
+
+    final next = List<String>.from(logs.value)..add(line);
+    if (next.length > 200) {
+      next.removeRange(0, next.length - 200);
+    }
+    logs.value = List.unmodifiable(next);
   }
 
   static void warn(String tag, String message) {

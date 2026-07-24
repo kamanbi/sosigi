@@ -329,109 +329,12 @@ class _HomePageState extends ConsumerState<HomePage>
         ),
       );
 
-      if ((i + 1) % 20 == 0) {
+      if ((i + 1) % 30 == 0) {
         widgets.add(const InlineBannerAd());
       }
     }
 
     return widgets;
-  }
-
-  Widget _buildTrendKeywordsSection({
-    required List<String> trendKeywords,
-    required String? activeTrendKeyword,
-    required HomeNotifier homeNotifier,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '오늘의 이슈 키워드',
-            style: AppTextStyles.sectionTitle.copyWith(fontSize: 13),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: List.generate(trendKeywords.length, (index) {
-              final keyword = trendKeywords[index];
-              final isActive = activeTrendKeyword == keyword;
-              return GestureDetector(
-                onTap: () => isActive
-                    ? homeNotifier.clearTrendKeyword()
-                    : homeNotifier.setTrendKeyword(keyword),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isActive ? AppColors.navy : AppColors.surface,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: isActive ? AppColors.navy : AppColors.cardBorder,
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Text(
-                    '${index + 1}위 $keyword',
-                    style: AppTextStyles.caption.copyWith(
-                      fontSize: 11,
-                      color: isActive ? Colors.white : AppColors.primaryText,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrendFilterBanner({
-    required String keyword,
-    required int count,
-    required HomeNotifier homeNotifier,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.accentSoft,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.cardBorder),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.search_rounded, size: 16, color: AppColors.navy),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                '$keyword 관련 뉴스 ($count건)',
-                style: AppTextStyles.caption.copyWith(
-                  fontSize: 12,
-                  color: AppColors.navy,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            GestureDetector(
-              onTap: homeNotifier.clearTrendKeyword,
-              child: const Icon(
-                Icons.close_rounded,
-                size: 16,
-                color: AppColors.secondaryText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildEmptyState({
@@ -486,8 +389,6 @@ class _HomePageState extends ConsumerState<HomePage>
       );
     }
 
-    final trendKeywords = ref.watch(trendKeywordsProvider);
-    final activeTrendKeyword = homeState.activeTrendKeyword;
     final isKeywordMode = homeState.selectedCategory == HomeCategory.keyword;
     final isManualRefreshEnabled =
         !_isManualRefreshLocked && !homeState.isLoading;
@@ -626,9 +527,17 @@ class _HomePageState extends ConsumerState<HomePage>
                   TextField(
                     controller: _searchController,
                     onChanged: homeNotifier.setSearchQuery,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.primaryText,
+                    ),
                     decoration: InputDecoration(
                       hintText: '기사 검색',
-                      prefixIcon: const Icon(Icons.search_rounded),
+                      hintStyle: AppTextStyles.caption,
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        size: 18,
+                        color: AppColors.secondaryText,
+                      ),
                       suffixIcon: homeState.searchQuery.isEmpty
                           ? null
                           : IconButton(
@@ -636,13 +545,17 @@ class _HomePageState extends ConsumerState<HomePage>
                                 _searchController.clear();
                                 homeNotifier.clearSearchQuery();
                               },
-                              icon: const Icon(Icons.close_rounded),
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: AppColors.secondaryText,
+                              ),
                             ),
                       filled: true,
                       fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
-                        vertical: 12,
+                        vertical: 10,
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -813,44 +726,24 @@ class _HomePageState extends ConsumerState<HomePage>
                           );
                         }
 
-                        final showTrendSection =
-                            homeState.selectedCategory == HomeCategory.all &&
-                                trendKeywords.isNotEmpty;
-
                         final emptyTitle = enabledSourceCount == 0
                             ? '활성화된 뉴스 소스가 없습니다.'
-                            : activeTrendKeyword != null
-                                ? '"$activeTrendKeyword" 관련 기사 없음'
-                                : homeState.errorMessage != null
-                                    ? '뉴스 업데이트 실패'
-                                    : homeState.searchQuery.isNotEmpty
+                            : homeState.errorMessage != null
+                                ? '뉴스 업데이트 실패'
+                                : homeState.searchQuery.isNotEmpty
                                         ? '검색 결과가 없습니다.'
                                         : '표시할 뉴스가 없습니다.';
 
                         final emptyBody = enabledSourceCount == 0
                             ? '설정에서 뉴스 소스를 하나 이상 켜 주세요.'
-                            : activeTrendKeyword != null
-                                ? '수집된 기사 중 해당 키워드가 포함된 기사가 없습니다.'
-                                : homeState.errorMessage != null
-                                    ? '잠시 뒤 다시 시도하거나 네트워크 상태를 확인해 주세요.'
-                                    : homeState.searchQuery.isNotEmpty
-                                        ? '검색어를 바꾸거나 초기화해 주세요.'
-                                        : '뉴스 소스를 확인하거나 잠시 뒤 다시 시도해 주세요.';
+                            : homeState.errorMessage != null
+                                ? '잠시 뒤 다시 시도하거나 네트워크 상태를 확인해 주세요.'
+                                : homeState.searchQuery.isNotEmpty
+                                    ? '검색어를 바꾸거나 초기화해 주세요.'
+                                    : '뉴스 소스를 확인하거나 잠시 뒤 다시 시도해 주세요.';
 
                         return Column(
                           children: [
-                            if (showTrendSection)
-                              _buildTrendKeywordsSection(
-                                trendKeywords: trendKeywords,
-                                activeTrendKeyword: activeTrendKeyword,
-                                homeNotifier: homeNotifier,
-                              ),
-                            if (activeTrendKeyword != null)
-                              _buildTrendFilterBanner(
-                                keyword: activeTrendKeyword,
-                                count: homeState.visibleArticles.length,
-                                homeNotifier: homeNotifier,
-                              ),
                             Expanded(
                               child: RefreshIndicator(
                                 onRefresh: _handleManualRefresh,

@@ -134,19 +134,35 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                     children: [
                       Text('현재 상태', style: AppTextStyles.sectionTitle),
                       const SizedBox(height: 12),
-                      Text(
-                        '전체 기사: ${homeState.allArticles.length}\n'
-                        '표시 기사: ${homeState.visibleArticles.length}\n'
-                        '활성 소스: $enabledCount / ${sources.length}\n'
-                        '읽음 기사: ${articleState.readIds.length}\n'
-                        '북마크 기사: ${articleState.bookmarkedIds.length}\n'
-                        '검색어: ${homeState.searchQuery.isEmpty ? '(없음)' : homeState.searchQuery}\n'
-                        '마지막 동기화: ${homeState.lastSyncAt == null ? '(없음)' : DateFormat('MM.dd HH:mm:ss').format(homeState.lastSyncAt!)}\n'
-                        '최근 신규 기사 수: ${homeState.lastRefreshNewCount}\n'
-                        '최근 상태 메시지: ${homeState.statusMessage ?? '(없음)'}\n'
-                        '최근 에러: ${homeState.errorMessage ?? '(없음)'}\n'
-                        '${_formatBackgroundSyncResult(_backgroundSyncResult)}',
-                        style: AppTextStyles.sectionBody.copyWith(fontSize: 13),
+                      ValueListenableBuilder<List<String>>(
+                        valueListenable: AppLogger.logs,
+                        builder: (context, logs, _) {
+                          // 로그에서 최신 ERROR 라인 검출 (refresh 외 모든 에러 포함)
+                          String latestError = '(없음)';
+                          for (final line in logs.reversed) {
+                            if (line.contains('[ERROR]')) {
+                              latestError = line;
+                              break;
+                            }
+                          }
+                          if (latestError == '(없음)' && homeState.errorMessage != null) {
+                            latestError = homeState.errorMessage!;
+                          }
+                          return Text(
+                            '전체 기사: ${homeState.allArticles.length}\n'
+                            '표시 기사: ${homeState.visibleArticles.length}\n'
+                            '활성 소스: $enabledCount / ${sources.length}\n'
+                            '읽음 기사: ${articleState.readIds.length}\n'
+                            '북마크 기사: ${articleState.bookmarkedIds.length}\n'
+                            '검색어: ${homeState.searchQuery.isEmpty ? '(없음)' : homeState.searchQuery}\n'
+                            '마지막 동기화: ${homeState.lastSyncAt == null ? '(없음)' : DateFormat('MM.dd HH:mm:ss').format(homeState.lastSyncAt!)}\n'
+                            '최근 신규 기사 수: ${homeState.lastRefreshNewCount}\n'
+                            '최근 상태 메시지: ${homeState.statusMessage ?? '(없음)'}\n'
+                            '최근 에러: $latestError\n'
+                            '${_formatBackgroundSyncResult(_backgroundSyncResult)}',
+                            style: AppTextStyles.sectionBody.copyWith(fontSize: 13),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -188,19 +204,16 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                       ValueListenableBuilder<List<String>>(
                         valueListenable: AppLogger.logs,
                         builder: (context, logs, _) {
-                          final recentLogs = logs
-                              .where((line) => line.contains('[ERROR]'))
-                              .toList(growable: false);
-
-                          if (recentLogs.isEmpty) {
+                          if (logs.isEmpty) {
                             return Text(
                               '로그가 없습니다.',
                               style: AppTextStyles.sectionBody,
                             );
                           }
 
+                          // 최신 60개 (ERROR + INFO 모두)
                           final recent = <String>[
-                            ...recentLogs.reversed.take(40),
+                            ...logs.reversed.take(60),
                           ];
 
                           return Column(

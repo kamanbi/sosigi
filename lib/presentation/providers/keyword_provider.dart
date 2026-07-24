@@ -60,4 +60,23 @@ class KeywordNotifier extends StateNotifier<List<KeywordItem>> {
     state = next;
     await _store.saveKeywords(next);
   }
+
+  Future<void> setNotificationDeliveryTime(
+    String id,
+    KeywordNotificationTime deliveryTime,
+  ) async {
+    final next = state
+        .map(
+          (keyword) => keyword.id == id
+              ? keyword.copyWith(
+                  notificationDeliveryTime: deliveryTime,
+                  clearLastNotifiedAt: true,
+                )
+              : keyword,
+        )
+        .toList();
+
+    state = next;
+    await _store.saveKeywords(next);
+  }
 }

@@ -50,6 +50,7 @@ class NewsRefreshService {
     required bool force,
     required String refreshOwner,
   }) async {
+    AppLogger.info('NewsRefreshService', 'refresh called: force=$force owner=$refreshOwner');
     var hasRefreshLease = false;
 
     try {
@@ -154,7 +155,7 @@ class NewsRefreshService {
       await _pruneNotifiedKeys(retained);
 
       await _notifyForNewKeywordArticles(
-        newArticles: newArticles,
+        candidateArticles: retained,
         keywords: keywords,
       );
 
@@ -240,18 +241,50 @@ class NewsRefreshService {
   }
 
   Future<void> _notifyForNewKeywordArticles({
-    required List<Article> newArticles,
+    required List<Article> candidateArticles,
     required List<KeywordItem> keywords,
   }) async {
-    if (newArticles.isEmpty || keywords.isEmpty) return;
+    AppLogger.info(
+      'NewsRefreshService',
+      'notifyStart: candidateArticles=${candidateArticles.length} keywords=${keywords.map((k) => k.name).join(',')}',
+    );
+    if (candidateArticles.isEmpty || keywords.isEmpty) return;
 
-    final enabledKeywordsByLower = <String, String>{
-      for (final keyword in keywords)
-        if (keyword.notificationEnabled)
-          keyword.name.trim().toLowerCase(): keyword.name,
+    final now = DateTime.now();
+
+    // 알림 활성화 + 쿨다운 통과한 키워드만 추림
+    // lower → KeywordItem 맵 (쿨다운 체크용)
+    final eligibleByLower = <String, KeywordItem>{};
+    for (final kw in keywords) {
+      if (!kw.notificationEnabled) continue;
+      if (!kw.notificationDeliveryTime.isReached(now)) {
+        AppLogger.info(
+          'NotificationSchedule',
+          'skipped "${kw.name}": before ${kw.notificationDeliveryTime.storageValue}',
+        );
+        continue;
+      }
+      if (_wasKeywordNotifiedToday(kw.lastNotifiedAt, now)) {
+        AppLogger.info(
+          'NotificationSchedule',
+          'skipped "${kw.name}": already notified today',
+        );
+        continue;
+      }
+      eligibleByLower[kw.name.trim().toLowerCase()] = kw;
+    }
+
+    AppLogger.info(
+      'NewsRefreshService',
+      'eligibleKeywords: ${eligibleByLower.keys.join(',')}',
+    );
+    if (eligibleByLower.isEmpty) return;
+
+    // lower → 원본 이름 맵 (기존 로직 호환)
+    final enabledKeywordsByLower = {
+      for (final entry in eligibleByLower.entries)
+        entry.key: entry.value.name,
     };
-
-    if (enabledKeywordsByLower.isEmpty) return;
 
     // Hive 손상 시 notifiedKeys 로드 실패해도 알림 전송을 막지 않도록 try-catch.
     // 로드 실패 시 빈 Set을 사용해 이번 실행 내 중복만 방지한다.
@@ -268,9 +301,11 @@ class NewsRefreshService {
       notifiedKeys = {};
     }
     final grouped = <String, List<Article>>{};
-    final nextNotifiedKeys = <String>{};
+    final groupedNotificationKeys = <String, Set<String>>{};
+    final currentRunNotificationKeys = <String>{};
 
-    for (final article in newArticles) {
+    for (final article in candidateArticles) {
+      // 1차: 기존 article.matchedKeywords 기반 매칭
       final matched = article.matchedKeywords
           .where(
             (keyword) => enabledKeywordsByLower.containsKey(
@@ -282,37 +317,86 @@ class NewsRefreshService {
           )
           .toSet();
 
+      // 2차 (방어): article.matchedKeywords가 누락됐을 수 있으므로
+      // title + summary를 직접 재스캔하여 보강
+      final titleLower = article.title.toLowerCase();
+      final summaryLower = article.summary.toLowerCase();
+      for (final entry in enabledKeywordsByLower.entries) {
+        if (titleLower.contains(entry.key) || summaryLower.contains(entry.key)) {
+          matched.add(entry.value);
+        }
+      }
+
       for (final keyword in matched) {
         final notificationKey =
             '${keyword.trim().toLowerCase()}|${_notificationFingerprint(article)}';
         if (notifiedKeys.contains(notificationKey) ||
-            !nextNotifiedKeys.add(notificationKey)) {
+            !currentRunNotificationKeys.add(notificationKey)) {
           AppLogger.info('NotificationDedup', 'skipped duplicate: $notificationKey');
           continue;
         }
 
         grouped.putIfAbsent(keyword, () => <Article>[]);
         grouped[keyword]!.add(article);
+        groupedNotificationKeys.putIfAbsent(keyword, () => <String>{});
+        groupedNotificationKeys[keyword]!.add(notificationKey);
       }
     }
 
+    AppLogger.info(
+      'NewsRefreshService',
+      'grouped: ${grouped.map((k, v) => MapEntry(k, v.length)).toString()}',
+    );
+    // 실제로 알림이 발송된 키워드만 추적
+    final actuallyNotifiedLower = <String>{};
+    final deliveredNotificationKeys = <String>{};
     for (final entry in grouped.entries) {
       try {
-        await _notificationService.showKeywordSummary(
+        final sent = await _notificationService.showKeywordSummary(
           keyword: entry.key,
           articles: entry.value,
         );
+        if (sent) {
+          actuallyNotifiedLower.add(entry.key.trim().toLowerCase());
+          deliveredNotificationKeys.addAll(
+            groupedNotificationKeys[entry.key] ?? const <String>{},
+          );
+        } else {
+          AppLogger.info(
+            'NewsRefreshService',
+            'notification blocked for "${entry.key}" (foreground / permission / quiet hours)',
+          );
+        }
       } catch (e, st) {
         AppLogger.error('NewsRefreshService', 'notification error', e, st);
       }
     }
 
-    if (nextNotifiedKeys.isNotEmpty) {
+    if (deliveredNotificationKeys.isNotEmpty) {
       await _store.saveNotifiedArticleKeys({
         ...notifiedKeys,
-        ...nextNotifiedKeys,
+        ...deliveredNotificationKeys,
       });
     }
+
+    // 실제 알림이 발송된 키워드만 lastNotifiedAt 갱신
+    if (actuallyNotifiedLower.isNotEmpty) {
+      final updatedKeywords = keywords.map((kw) {
+        if (actuallyNotifiedLower.contains(kw.name.trim().toLowerCase())) {
+          return kw.copyWith(lastNotifiedAt: now);
+        }
+        return kw;
+      }).toList();
+      await _store.saveKeywords(updatedKeywords);
+    }
+  }
+
+  bool _wasKeywordNotifiedToday(DateTime? lastNotifiedAt, DateTime now) {
+    if (lastNotifiedAt == null) return false;
+
+    return lastNotifiedAt.year == now.year &&
+        lastNotifiedAt.month == now.month &&
+        lastNotifiedAt.day == now.day;
   }
 
   List<Article> _pickNewArticles({

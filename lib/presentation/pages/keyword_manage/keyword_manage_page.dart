@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sosigi/app/theme/app_colors.dart';
 import 'package:sosigi/app/theme/app_text_styles.dart';
+import 'package:sosigi/domain/models/keyword_item.dart';
+import 'package:sosigi/presentation/providers/app_settings_provider.dart';
 import 'package:sosigi/presentation/providers/keyword_provider.dart';
 import 'package:sosigi/presentation/widgets/common/bottom_banner_ad.dart';
 import 'package:sosigi/presentation/widgets/common/premium_card.dart';
@@ -27,6 +30,7 @@ class _KeywordManagePageState extends ConsumerState<KeywordManagePage> {
   @override
   void initState() {
     super.initState();
+    unawaited(ref.read(appSettingsProvider.notifier).load());
     _checkPermissions();
   }
 
@@ -37,13 +41,14 @@ class _KeywordManagePageState extends ConsumerState<KeywordManagePage> {
   }
 
   Future<void> _checkPermissions() async {
-    bool notifGranted;
+    bool notificationGranted;
     bool batteryOptimized;
 
     try {
-      notifGranted = await NotificationService.instance.syncPermissionState();
+      notificationGranted =
+          await NotificationService.instance.syncPermissionState();
     } catch (_) {
-      notifGranted = false;
+      notificationGranted = false;
     }
 
     try {
@@ -54,12 +59,11 @@ class _KeywordManagePageState extends ConsumerState<KeywordManagePage> {
       batteryOptimized = false;
     }
 
-    if (mounted) {
-      setState(() {
-        _notificationGranted = notifGranted;
-        _batteryOptimized = batteryOptimized;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _notificationGranted = notificationGranted;
+      _batteryOptimized = batteryOptimized;
+    });
   }
 
   Future<void> _requestNotificationPermission() async {
@@ -70,6 +74,43 @@ class _KeywordManagePageState extends ConsumerState<KeywordManagePage> {
   Future<void> _requestBatteryOptimizationException() async {
     await BackgroundSyncScheduler.instance.requestIgnoreBatteryOptimization();
     await _checkPermissions();
+  }
+
+  Future<void> _pickKeywordNotificationTime(KeywordItem keyword) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: keyword.notificationDeliveryTime.hour,
+        minute: keyword.notificationDeliveryTime.minute,
+      ),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+    if (picked == null) return;
+
+    final deliveryTime = KeywordNotificationTime(
+      hour: picked.hour,
+      minute: picked.minute,
+    );
+    final quietHours = ref.read(appSettingsProvider).notificationQuietHours;
+    final deliveryMoment = DateTime(2000, 1, 1, picked.hour, picked.minute);
+    if (quietHours.contains(deliveryMoment)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('알림 금지 시간대에는 키워드 알림 시각을 설정할 수 없습니다.'),
+        ),
+      );
+      return;
+    }
+
+    await ref
+        .read(keywordProvider.notifier)
+        .setNotificationDeliveryTime(keyword.id, deliveryTime);
   }
 
   void _submit() {
@@ -131,7 +172,7 @@ class _KeywordManagePageState extends ConsumerState<KeywordManagePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '새 키워드 등록',
+                        '키워드 등록',
                         style:
                             AppTextStyles.sectionTitle.copyWith(fontSize: 14),
                       ),
@@ -188,80 +229,124 @@ class _KeywordManagePageState extends ConsumerState<KeywordManagePage> {
                 ),
                 const SizedBox(height: 10),
                 if (keywords.isEmpty)
-                  PremiumCard(
-                    padding: const EdgeInsets.all(12),
-                    child: SizedBox(
-                      height: 220,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.sell_outlined,
-                            size: 52,
-                            color: AppColors.secondaryText,
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            '등록된 키워드가 아직 없습니다.',
-                            textAlign: TextAlign.center,
-                            style: AppTextStyles.largeEmptyTitle,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '위 입력창에서 키워드를 등록해 보세요.',
-                            textAlign: TextAlign.center,
-                            style: AppTextStyles.largeEmptyBody,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
+                  const _EmptyKeywordCard()
                 else
-                  ...keywords.map((keyword) {
-                    return PremiumCard(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              keyword.name,
-                              style: AppTextStyles.sectionTitle.copyWith(
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          Switch(
-                            value: keyword.notificationEnabled,
-                            onChanged: (value) => ref
-                                .read(keywordProvider.notifier)
-                                .setNotificationEnabled(keyword.id, value),
-                            activeColor: AppColors.navy,
-                            activeTrackColor: AppColors.accent,
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              ref
-                                  .read(keywordProvider.notifier)
-                                  .removeKeyword(keyword.id);
-                            },
-                            icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              color: AppColors.secondaryText,
-                              size: 22,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                  ...keywords.map(_buildKeywordCard),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildKeywordCard(KeywordItem keyword) {
+    return PremiumCard(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 8,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              keyword.name,
+              style: AppTextStyles.sectionTitle.copyWith(fontSize: 14),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            '알림 시각:',
+            style: AppTextStyles.caption.copyWith(
+              fontSize: 11,
+              color: keyword.notificationEnabled
+                  ? AppColors.secondaryText
+                  : AppColors.inactive,
+            ),
+          ),
+          const SizedBox(width: 2),
+          IgnorePointer(
+            ignoring: !keyword.notificationEnabled,
+            child: Opacity(
+              opacity: keyword.notificationEnabled ? 1.0 : 0.35,
+              child: TextButton(
+                onPressed: () => _pickKeywordNotificationTime(keyword),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.navy,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  keyword.notificationDeliveryTime.storageValue,
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 12,
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          Switch(
+            value: keyword.notificationEnabled,
+            onChanged: (value) => ref
+                .read(keywordProvider.notifier)
+                .setNotificationEnabled(keyword.id, value),
+            activeThumbColor: AppColors.navy,
+            activeTrackColor: AppColors.accent,
+          ),
+          IconButton(
+            onPressed: () =>
+                ref.read(keywordProvider.notifier).removeKeyword(keyword.id),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: AppColors.secondaryText,
+              size: 22,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyKeywordCard extends StatelessWidget {
+  const _EmptyKeywordCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return PremiumCard(
+      padding: const EdgeInsets.all(12),
+      child: SizedBox(
+        height: 220,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.sell_outlined,
+              size: 52,
+              color: AppColors.secondaryText,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '등록한 키워드가 아직 없습니다.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.largeEmptyTitle,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '위 입력창에서 키워드를 등록해 보세요.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.largeEmptyBody,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -302,7 +387,7 @@ class _NotificationPermissionBanner extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  '키워드 알림을 받으려면 아래 두 항목을 모두 허용해야 합니다.',
+                  '키워드 알림을 받으려면 아래 항목을 확인해야 합니다.',
                   style: AppTextStyles.sectionBody.copyWith(
                     fontSize: 12,
                     color: const Color(0xFF92400E),

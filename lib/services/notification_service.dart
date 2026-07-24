@@ -161,14 +161,16 @@ class NotificationService {
     }
   }
 
-  Future<void> showKeywordSummary({
+  /// 알림 실제 발송 여부를 반환한다.
+  /// 포그라운드·권한 없음·금지 시간 등으로 차단되면 false를 반환한다.
+  Future<bool> showKeywordSummary({
     required String keyword,
     required List<Article> articles,
   }) async {
-    if (articles.isEmpty) return;
-    if (_isAppInForeground) return;
-    if (!await canShowNotifications()) return;
-    if (await _isWithinNotificationQuietHours()) return;
+    if (articles.isEmpty) return false;
+    if (_isAppInForeground) return false;
+    if (!await canShowNotifications()) return false;
+    if (await _isWithinNotificationQuietHours()) return false;
 
     final count = articles.length;
     final latest = articles.first.title;
@@ -192,6 +194,7 @@ class NotificationService {
       details,
       payload: keyword,
     );
+    return true;
   }
 
   void consumeSelectedKeyword() {

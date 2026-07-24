@@ -20,7 +20,7 @@ android {
     defaultConfig {
         applicationId = "com.kaman.sosigi"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true

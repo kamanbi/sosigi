@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sosigi/app/router.dart';
 import 'package:sosigi/app/theme/app_colors.dart';
@@ -30,8 +29,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage>
     with WidgetsBindingObserver {
-  static const String _playStoreAppUrl =
-      'https://play.google.com/store/apps/details?id=com.kaman.sosigi';
   static const double _syncPickerItemExtent = 72;
   static const double _syncPickerValueFontSize = 48;
   static const double _syncPickerHeight = 196;
@@ -289,7 +286,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: selectedHour,
+                      initialValue: selectedHour,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: '시'),
                       items: [
@@ -310,7 +307,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: selectedMinute,
+                      initialValue: selectedMinute,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: '분'),
                       items: [
@@ -492,24 +489,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         );
   }
 
-  Future<void> _copyPlayStoreLink() async {
-    await Clipboard.setData(
-      const ClipboardData(text: _playStoreAppUrl),
-    );
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Play 스토어 링크를 복사했습니다.',
-          style: AppTextStyles.sectionBody.copyWith(color: Colors.white),
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
@@ -599,7 +578,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                             await notifier.setWifiOnly(true);
                             await _refreshIfNetworkReady();
                           },
-                          activeColor: AppColors.navy,
+                          activeThumbColor: AppColors.navy,
                           activeTrackColor: AppColors.accent,
                         ),
                       ],
@@ -711,36 +690,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                       ],
                     ),
                   ),
-                SettingsSectionCard(
-                  icon: Icons.security_rounded,
-                  title: '권한 및 백그라운드',
-                  description: '알림과 백그라운드 허용 상태 확인',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SettingActionTile(
-                        title:
-                            _isNotificationGranted ? '알림 권한 설정됨' : '알림 권한 허용하기',
-                        subtitle: _isNotificationGranted
-                            ? '새로운 키워드 뉴스가 생기면 알림창으로 바로 안내됩니다.'
-                            : '새로운 키워드 뉴스가 도착했을 때 알림창으로 바로 받기 위해 필요합니다.',
-                        onTap: _requestNotificationPermission,
-                      ),
-                      if (Platform.isAndroid) ...[
-                        const SizedBox(height: 8),
-                        SettingActionTile(
-                          title: _isBatteryOptimized
-                              ? '백그라운드 허용하기'
-                              : '백그라운드 허용 설정됨',
-                          subtitle: _isBatteryOptimized
-                              ? '앱을 닫아도 자동 업데이트 주기에 맞춰 뉴스를 다시 확인하고 키워드 알림을 보내려면 필요합니다.'
-                              : '앱이 닫혀 있어도 자동 업데이트와 키워드 알림이 계속 동작합니다.',
-                          onTap: _requestBackgroundPermission,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                // 3. 뉴스 보관 기간
                 SettingsSectionCard(
                   icon: Icons.access_time_rounded,
                   title: '뉴스 보관 기간',
@@ -758,6 +708,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     ],
                   ),
                 ),
+                // 4. 키워드 관리
+                SettingsSectionCard(
+                  icon: Icons.notifications_active_outlined,
+                  title: '키워드 관리',
+                  description: '등록, 해제, 알림 설정',
+                  child: SettingActionTile(
+                    title: '키워드 등록 열기',
+                    subtitle: '등록, 해제, 알림 설정',
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRouter.keywords);
+                    },
+                  ),
+                ),
+                // 5. 알림 금지 시간
                 SettingsSectionCard(
                   icon: Icons.notifications_paused_outlined,
                   title: '알림 금지 시간',
@@ -809,18 +773,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     ],
                   ),
                 ),
-                SettingsSectionCard(
-                  icon: Icons.notifications_active_outlined,
-                  title: '키워드 관리',
-                  description: '등록, 해제, 알림 설정',
-                  child: SettingActionTile(
-                    title: '키워드 등록 열기',
-                    subtitle: '등록, 해제, 알림 설정',
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRouter.keywords);
-                    },
-                  ),
-                ),
+                // 6. 뉴스 소스
                 SettingsSectionCard(
                   icon: Icons.folder_open_rounded,
                   title: '뉴스 소스',
@@ -833,38 +786,61 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     },
                   ),
                 ),
+                // 7. 권한 및 백그라운드
                 SettingsSectionCard(
-                  icon: Icons.share_outlined,
-                  title: '앱 공유',
-                  description: '스토어 링크 복사',
-                  child: SettingActionTile(
-                    title: 'Play 스토어 링크 복사하기',
-                    subtitle: '앱 공유용 링크를 클립보드에 복사합니다.',
-                    onTap: _copyPlayStoreLink,
+                  icon: Icons.security_rounded,
+                  title: '권한 및 백그라운드',
+                  description: '알림과 백그라운드 허용 상태 확인',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SettingActionTile(
+                        title:
+                            _isNotificationGranted ? '알림 권한 설정됨' : '알림 권한 허용하기',
+                        subtitle: _isNotificationGranted
+                            ? '새로운 키워드 뉴스가 생기면 알림창으로 바로 안내됩니다.'
+                            : '새로운 키워드 뉴스가 도착했을 때 알림창으로 바로 받기 위해 필요합니다.',
+                        onTap: _requestNotificationPermission,
+                      ),
+                      if (Platform.isAndroid) ...[
+                        const SizedBox(height: 8),
+                        SettingActionTile(
+                          title: _isBatteryOptimized
+                              ? '백그라운드 허용하기'
+                              : '백그라운드 허용 설정됨',
+                          subtitle: _isBatteryOptimized
+                              ? '앱을 닫아도 자동 업데이트 주기에 맞춰 뉴스를 다시 확인하고 키워드 알림을 보내려면 필요합니다.'
+                              : '앱이 닫혀 있어도 자동 업데이트와 키워드 알림이 계속 동작합니다.',
+                          onTap: _requestBackgroundPermission,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                SettingsSectionCard(
-                  icon: Icons.analytics_outlined,
-                  title: '진단',
-                  description: '로그 및 상태 확인',
-                  child: SettingActionTile(
-                    title: '진단 화면 열기',
-                    subtitle: '최근 로그와 동작 상태를 확인합니다.',
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRouter.diagnostics);
-                    },
-                  ),
-                ),
+                // 8. 앱 정보 (진단 포함)
                 SettingsSectionCard(
                   icon: Icons.info_outline_rounded,
                   title: '앱 정보',
-                  description: '문의 및 정책',
-                  child: SettingActionTile(
-                    title: '앱 정보 및 문의',
-                    subtitle: '문의처와 개인정보처리방침을 확인합니다.',
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRouter.info);
-                    },
+                  description: '문의, 정책 및 진단',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SettingActionTile(
+                        title: '앱 정보 및 문의',
+                        subtitle: '문의처와 개인정보처리방침을 확인합니다.',
+                        onTap: () {
+                          Navigator.pushNamed(context, AppRouter.info);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      SettingActionTile(
+                        title: '진단 화면 열기',
+                        subtitle: '최근 로그와 동작 상태를 확인합니다.',
+                        onTap: () {
+                          Navigator.pushNamed(context, AppRouter.diagnostics);
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ],

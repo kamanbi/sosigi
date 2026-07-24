@@ -122,7 +122,7 @@ class NewsSourcesPage extends ConsumerWidget {
                       Switch(
                         value: source.enabled,
                         onChanged: (_) => notifier.toggleSource(source.id),
-                        activeColor: AppColors.navy,
+                        activeThumbColor: AppColors.navy,
                         activeTrackColor: AppColors.accent,
                       ),
                     ],

@@ -21,7 +21,7 @@ class _BottomBannerAdState extends State<BottomBannerAd> {
   }
 
   Future<void> _loadAd() async {
-    final width = (await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+    final width = (await AdSize.getLargeAnchoredAdaptiveBannerAdSize(
       MediaQuery.of(context).size.width.truncate(),
     )) ??
         AdSize.banner;

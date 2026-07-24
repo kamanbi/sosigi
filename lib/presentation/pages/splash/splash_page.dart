@@ -10,7 +10,6 @@ import 'package:sosigi/services/background_sync_scheduler.dart';
 import 'package:sosigi/services/local_store_service.dart';
 import 'package:sosigi/services/notification_service.dart';
 import 'package:sosigi/services/update_check_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class _PermissionPromptDecision {
   const _PermissionPromptDecision({
@@ -152,15 +151,7 @@ class _SplashPageState extends State<SplashPage> with WidgetsBindingObserver {
                 ),
                 onPressed: () async {
                   Navigator.pop(context);
-                  if (result.source == UpdateSource.inAppUpdate) {
-                    await service.triggerInAppUpdate();
-                  } else {
-                    final url = Uri.tryParse(result.storeUrl ?? '');
-                    if (url != null) {
-                      await launchUrl(url,
-                          mode: LaunchMode.externalApplication);
-                    }
-                  }
+                  await service.triggerInAppUpdate();
                 },
                 child: Text(
                   '업데이트',
